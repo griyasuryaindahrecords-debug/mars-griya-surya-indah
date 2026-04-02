@@ -125,21 +125,15 @@
 
         /* --- FLOATING THUMB --- */
         .progress-thumb {
-            width: 12px;
-            height: 12px;
+            width: 14px;
+            height: 14px;
             background: white;
             border-radius: 50%;
             position: absolute;
-            right: -6px;
+            right: -7px;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
-            opacity: 0;
-            transition: opacity 0.2s ease;
+            opacity: 1; /* Diubah jadi 1 agar thumb terlihat saat interaksi di mobile */
             pointer-events: none;
-        }
-
-        .progress-bar-bg:active .progress-thumb,
-        .progress-bar-bg.dragging .progress-thumb {
-            opacity: 1;
         }
 
         .time-info {
@@ -333,17 +327,17 @@
         let isPlaying = false;
         let isProcessing = false;
         let hideTimeout;
-        let isFirstLoad = true; 
         let isDragging = false;
+        let dragPosition = 0;
 
         // --- SMART PLAY BUTTON ---
         function startHideTimer() {
             clearTimeout(hideTimeout);
-            if (!isPlaying) return; // Hanya jalankan timer jika musik sedang jalan
+            if (!isPlaying) return;
             
             hideTimeout = setTimeout(() => {
                 controlsOverlay.classList.add('controls-hidden');
-            }, 5000); // Sekarang 5 detik
+            }, 5000);
         }
 
         artWrapper.addEventListener('click', () => {
@@ -357,12 +351,10 @@
             try {
                 if (isPlaying) {
                     audio.pause();
-                    isFirstLoad = false;
-                    clearTimeout(hideTimeout); // Tetap tampil saat pause
+                    clearTimeout(hideTimeout);
                 } else {
                     playIcon.className = 'fas fa-spinner loading-spin';
                     await audio.play();
-                    isFirstLoad = false;
                     startHideTimer();
                 }
             } catch (err) {
@@ -404,60 +396,60 @@
             }
         });
 
-        // --- SEEKBAR DRAG & DROP LOGIC ---
-        function updateSeek(e) {
-            if (!audio.duration) return;
+        // --- IMPROVED SEEKBAR LOGIC (SOLUSI HP) ---
+        function calculatePosition(e) {
             const rect = progressBarBg.getBoundingClientRect();
-            let clientX = e.clientX || (e.touches && e.touches[0].clientX);
-            let pos = (clientX - rect.left) / rect.width;
-            pos = Math.max(0, Math.min(1, pos));
-            
-            const seekTime = pos * audio.duration;
-            progressFill.style.width = (pos * 100) + '%';
-            currentTimeEl.innerText = formatTime(seekTime);
-            
-            if (!isDragging) {
-                audio.currentTime = seekTime;
+            let clientX = e.clientX;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+            } else if (e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX;
             }
-            return seekTime;
+            
+            let pos = (clientX - rect.left) / rect.width;
+            return Math.max(0, Math.min(1, pos));
         }
 
+        function handleDrag(e) {
+            if (!isDragging || !audio.duration) return;
+            dragPosition = calculatePosition(e);
+            
+            // Update visual saja saat drag (agar tidak lompat-lompat di HP)
+            const percent = dragPosition * 100;
+            progressFill.style.width = percent + '%';
+            currentTimeEl.innerText = formatTime(dragPosition * audio.duration);
+            
+            if (e.cancelable) e.preventDefault();
+        }
+
+        // Mouse Events
         progressBarBg.addEventListener('mousedown', (e) => {
             isDragging = true;
-            progressBarBg.classList.add('dragging');
-            updateSeek(e);
+            dragPosition = calculatePosition(e);
+            handleDrag(e);
         });
 
-        window.addEventListener('mousemove', (e) => {
-            if (isDragging) updateSeek(e);
-        });
-
-        window.addEventListener('mouseup', (e) => {
-            if (isDragging) {
-                const finalTime = updateSeek(e);
-                audio.currentTime = finalTime;
-                isDragging = false;
-                progressBarBg.classList.remove('dragging');
-            }
-        });
-
-        // Touch support
+        // Touch Events (HP)
         progressBarBg.addEventListener('touchstart', (e) => {
             isDragging = true;
-            progressBarBg.classList.add('dragging');
-            updateSeek(e);
-        }, {passive: true});
+            dragPosition = calculatePosition(e);
+            handleDrag(e);
+        }, { passive: false });
 
-        window.addEventListener('touchmove', (e) => {
-            if (isDragging) updateSeek(e);
-        }, {passive: false});
+        window.addEventListener('mousemove', handleDrag);
+        window.addEventListener('touchmove', handleDrag, { passive: false });
 
-        window.addEventListener('touchend', (e) => {
+        const endDrag = (e) => {
             if (isDragging) {
                 isDragging = false;
-                progressBarBg.classList.remove('dragging');
+                if (audio.duration) {
+                    audio.currentTime = dragPosition * audio.duration;
+                }
             }
-        });
+        };
+
+        window.addEventListener('mouseup', endDrag);
+        window.addEventListener('touchend', endDrag);
 
         // --- AUDIO ENGINE UPDATES ---
         audio.addEventListener('play', () => {
@@ -470,7 +462,7 @@
             isPlaying = false;
             playIcon.className = 'fas fa-play';
             playIcon.style.marginLeft = '5px';
-            controlsOverlay.classList.remove('controls-hidden'); // Munculkan kembali saat pause
+            controlsOverlay.classList.remove('controls-hidden');
         });
 
         youtubeTrackCard.addEventListener('click', (e) => {
@@ -492,6 +484,7 @@
         }
 
         audio.addEventListener('timeupdate', () => {
+            // Update visual hanya jika user tidak sedang menggeser
             if (audio.duration && !isDragging) {
                 const percent = (audio.currentTime / audio.duration) * 100;
                 progressFill.style.width = percent + '%';
@@ -499,7 +492,9 @@
             }
         });
 
-        audio.addEventListener('loadedmetadata', () => { durationTimeEl.innerText = formatTime(audio.duration); });
+        audio.addEventListener('loadedmetadata', () => { 
+            durationTimeEl.innerText = formatTime(audio.duration); 
+        });
     </script>
 </body>
 </html>
