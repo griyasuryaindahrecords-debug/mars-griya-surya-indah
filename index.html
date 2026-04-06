@@ -102,6 +102,9 @@
             width: 100%;
             margin-bottom: 25px;
             padding: 0 10px;
+            /* Memperbesar area sentuh untuk mobile */
+            padding-top: 10px;
+            padding-bottom: 10px;
         }
 
         .progress-bar-bg {
@@ -113,6 +116,7 @@
             position: relative;
             display: flex;
             align-items: center;
+            touch-action: none; /* Mencegah scrolling saat menggeser progress */
         }
 
         .progress-fill {
@@ -124,15 +128,16 @@
             display: flex;
             align-items: center;
             justify-content: flex-end;
+            pointer-events: none; /* Agar event tetap ditangkap oleh bg */
         }
 
         .progress-thumb {
-            width: 14px;
-            height: 14px;
+            width: 16px;
+            height: 16px;
             background: white;
             border-radius: 50%;
             position: absolute;
-            right: -7px;
+            right: -8px;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
             pointer-events: none;
         }
@@ -240,11 +245,10 @@
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
 </head>
-<body oncontextmenu="return false;"> <!-- Block Klik Kanan -->
+<body oncontextmenu="return false;">
 
     <div class="main-wrapper">
         <div class="art-container" id="artWrapper">
-            <!-- Thumbnail diganti sesuai instruksi -->
             <img src="https://lh3.googleusercontent.com/d/1RaAbiSkwwbNiZ5Cmg5l4fLxYFGyHa6BI" alt="Mars Griya Surya Indah" class="art-image">
             <div class="player-controls-overlay" id="controlsOverlay">
                 <div class="play-main" id="playBtn">
@@ -301,7 +305,6 @@
         <div class="music-section">
             <h2 class="music-header-text">Lagu:</h2>
             <div class="music-track-card" id="musicTrackCard">
-                <!-- Thumbnail bawah diganti -->
                 <img src="https://lh3.googleusercontent.com/d/1RaAbiSkwwbNiZ5Cmg5l4fLxYFGyHa6BI" class="music-track-thumb" alt="Mars Griya Surya Indah">
                 <div class="music-track-info">
                     <h3 class="music-track-title">Mars Griya Surya Indah</h3>
@@ -331,11 +334,11 @@
     <script>
         // PROTEKSI INSPECT ELEMENT
         document.onkeydown = function(e) {
-            if(event.keyCode == 123) return false; // F12
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) return false; // Ctrl+Shift+I
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) return false; // Ctrl+Shift+C
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) return false; // Ctrl+Shift+J
-            if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false; // Ctrl+U
+            if(event.keyCode == 123) return false;
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) return false;
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) return false;
+            if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) return false;
+            if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false;
         };
 
         const audio = document.getElementById('mainAudio');
@@ -355,26 +358,69 @@
         let isPlaying = false;
         let hideTimeout;
 
-        // --- LOGIKA TOMBOL PLAY (DESKTOP & MOBILE) ---
+        // --- LOGIKA PROGRESS BAR (CLICK & DRAG / TOUCH) ---
+        function setProgress(e) {
+            if (!audio.duration) return;
+            const rect = progressBarBg.getBoundingClientRect();
+            // Mendukung event Mouse (clientX) dan Touch (touches[0].clientX)
+            const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+            let pos = (clientX - rect.left) / rect.width;
+            
+            // Batasan agar tidak keluar dari 0% - 100%
+            if (pos < 0) pos = 0;
+            if (pos > 1) pos = 1;
+            
+            audio.currentTime = pos * audio.duration;
+            updateProgressUI();
+        }
+
+        function updateProgressUI() {
+            if (audio.duration) {
+                const percent = (audio.currentTime / audio.duration) * 100;
+                progressFill.style.width = percent + '%';
+                currentTimeEl.innerText = formatTime(audio.currentTime);
+            }
+        }
+
+        // Event Listeners untuk Progress Bar
+        progressBarBg.addEventListener('mousedown', (e) => {
+            setProgress(e);
+            const moveHandler = (moveEvent) => setProgress(moveEvent);
+            const upHandler = () => {
+                document.removeEventListener('mousemove', moveHandler);
+                document.removeEventListener('mouseup', upHandler);
+            };
+            document.addEventListener('mousemove', moveHandler);
+            document.addEventListener('mouseup', upHandler);
+        });
+
+        progressBarBg.addEventListener('touchstart', (e) => {
+            setProgress(e);
+            const moveHandler = (moveEvent) => setProgress(moveEvent);
+            const endHandler = () => {
+                document.removeEventListener('touchmove', moveHandler);
+                document.removeEventListener('touchend', endHandler);
+            };
+            document.addEventListener('touchmove', moveHandler, { passive: false });
+            document.addEventListener('touchend', endHandler);
+        }, { passive: false });
+
+        // --- CONTROLS OVERLAY ---
         function showControls() {
             controlsOverlay.classList.remove('controls-hidden');
             clearTimeout(hideTimeout);
             if (isPlaying) {
                 hideTimeout = setTimeout(() => {
                     if (isPlaying) controlsOverlay.classList.add('controls-hidden');
-                }, 4000); // Hilang dalam 4 detik jika play
+                }, 4000);
             }
         }
 
-        // Desktop: Hover
         artWrapper.addEventListener('mouseenter', showControls);
         artWrapper.addEventListener('mouseleave', () => {
-            if (isPlaying) {
-                controlsOverlay.classList.add('controls-hidden');
-            }
+            if (isPlaying) controlsOverlay.classList.add('controls-hidden');
         });
 
-        // Mobile/Touch: Klik layar thumbnail
         artWrapper.addEventListener('click', (e) => {
             if(e.target.closest('#playBtn')) return;
             showControls();
@@ -387,7 +433,6 @@
                 } else {
                     playIcon.className = 'fas fa-spinner loading-spin';
                     await audio.play();
-                    // Saat play diklik, jalankan timer 4 detik untuk menyembunyikan
                     hideTimeout = setTimeout(() => {
                         if (isPlaying) controlsOverlay.classList.add('controls-hidden');
                     }, 4000);
@@ -400,7 +445,7 @@
             togglePlay();
         });
 
-        // --- MODAL CREDIT ---
+        // --- MODAL ---
         function showModal() { modal.classList.add('active'); }
         function hideModal() {
             modal.classList.add('closing');
@@ -415,33 +460,27 @@
         // --- MOBILE DRAG LOGIC (Lagu Card Bawah) ---
         let startX = 0;
         let currentTranslate = 0;
-
         musicTrackCard.addEventListener('touchstart', (e) => {
             startX = e.touches[0].clientX;
             musicTrackCard.style.transition = 'none';
         });
-
         musicTrackCard.addEventListener('touchmove', (e) => {
             const currentX = e.touches[0].clientX;
             const diff = currentX - startX;
-            // Batasan agar tidak keluar garis web terlalu jauh (limit 50px)
             if (Math.abs(diff) < 60) {
                 currentTranslate = diff;
                 musicTrackCard.style.transform = `translateX(${currentTranslate}px)`;
             }
         });
-
         musicTrackCard.addEventListener('touchend', () => {
             musicTrackCard.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
             musicTrackCard.style.transform = 'translateX(0)';
             currentTranslate = 0;
         });
 
-        // Redirect Youtube (dari kode lama)
         musicTrackCard.addEventListener('click', (e) => {
             if (e.target.closest('#openModal') || Math.abs(currentTranslate) > 5) return;
-            const yId = 'mz1pT5ffqrw';
-            window.open(`https://www.youtube.com/watch?v=${yId}`, '_blank');
+            window.open(`https://www.youtube.com/watch?v=mz1pT5ffqrw`, '_blank');
         });
 
         // --- AUDIO ENGINE ---
@@ -455,18 +494,11 @@
             isPlaying = false;
             playIcon.className = 'fas fa-play';
             playIcon.style.marginLeft = '5px';
-            controlsOverlay.classList.remove('controls-hidden'); // Selalu muncul saat pause
+            controlsOverlay.classList.remove('controls-hidden');
             clearTimeout(hideTimeout);
         });
 
-        audio.addEventListener('timeupdate', () => {
-            if (audio.duration) {
-                const percent = (audio.currentTime / audio.duration) * 100;
-                progressFill.style.width = percent + '%';
-                currentTimeEl.innerText = formatTime(audio.currentTime);
-            }
-        });
-
+        audio.addEventListener('timeupdate', updateProgressUI);
         audio.addEventListener('loadedmetadata', () => {
             durationTimeEl.innerText = formatTime(audio.duration);
         });
@@ -476,13 +508,6 @@
             const sec = Math.floor(s % 60);
             return `${m}:${sec < 10 ? '0' + sec : sec}`;
         }
-
-        // Seekbar logic (dari kode lama)
-        progressBarBg.addEventListener('click', (e) => {
-            const rect = progressBarBg.getBoundingClientRect();
-            const pos = (e.clientX - rect.left) / rect.width;
-            audio.currentTime = pos * audio.duration;
-        });
     </script>
 </body>
 </html>
