@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body {
-            /* Background diganti sesuai instruksi */
             background-image: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://lh3.googleusercontent.com/d/1TWzF_zuAo1oBTM_YGj-rDicYBQucD4d-');
             background-size: cover;
             background-position: center;
@@ -22,7 +21,10 @@
             margin: 0;
             padding: 40px 20px;
             overflow-x: hidden;
-            user-select: none; /* Mencegah seleksi teks */
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
 
         .main-wrapper {
@@ -69,7 +71,7 @@
             justify-content: center;
             transition: opacity 0.4s ease;
             z-index: 20;
-            opacity: 1; /* Default muncul */
+            opacity: 1;
         }
 
         .controls-hidden {
@@ -102,7 +104,6 @@
             width: 100%;
             margin-bottom: 25px;
             padding: 0 10px;
-            /* Memperbesar area sentuh untuk mobile */
             padding-top: 10px;
             padding-bottom: 10px;
         }
@@ -116,7 +117,7 @@
             position: relative;
             display: flex;
             align-items: center;
-            touch-action: none; /* Mencegah scrolling saat menggeser progress */
+            touch-action: none;
         }
 
         .progress-fill {
@@ -128,7 +129,7 @@
             display: flex;
             align-items: center;
             justify-content: flex-end;
-            pointer-events: none; /* Agar event tetap ditangkap oleh bg */
+            pointer-events: none;
         }
 
         .progress-thumb {
@@ -332,15 +333,64 @@
     </audio>
 
     <script>
-        // PROTEKSI INSPECT ELEMENT
-        document.onkeydown = function(e) {
-            if(event.keyCode == 123) return false;
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) return false;
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) return false;
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) return false;
-            if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false;
-        };
+        /** * PERLINDUNGAN KETAT (ADVANCED ANTI-INSPECT)
+         */
 
+        // 1. Blokir Klik Kanan
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
+        // 2. Blokir Keyboard Shortcut (F12, Ctrl+Shift+I, Ctrl+U, dll)
+        document.addEventListener('keydown', (e) => {
+            if (
+                e.key === 'F12' || 
+                (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || 
+                (e.ctrlKey && (e.key === 'U' || e.key === 'S' || e.key === 'H' || e.key === 'A' || e.key === 'P')) ||
+                (e.metaKey && e.altKey && (e.key === 'I' || e.key === 'U')) // Mac support
+            ) {
+                e.preventDefault();
+                return false;
+            }
+        });
+
+        // 3. Anti-Debugger Loop (Jika konsol dibuka, browser akan terus "pause")
+        (function() {
+            const block = function() {
+                setInterval(function() {
+                    (function() {
+                        return false;
+                    }
+                    ['constructor']('debugger')
+                    ['call']());
+                }, 50);
+            };
+            try {
+                block();
+            } catch (err) {}
+        })();
+
+        // 4. Deteksi Perubahan Ukuran Layar (Ciri khas devtools dibuka di samping/bawah)
+        let devtoolsOpen = false;
+        const threshold = 160;
+        setInterval(() => {
+            const widthDiff = window.outerWidth - window.innerWidth > threshold;
+            const heightDiff = window.outerHeight - window.innerHeight > threshold;
+            if (widthDiff || heightDiff) {
+                if (!devtoolsOpen) {
+                    // Opsional: Redirect atau hapus konten jika terdeteksi
+                    // window.location.href = "about:blank"; 
+                }
+                devtoolsOpen = true;
+            } else {
+                devtoolsOpen = false;
+            }
+        }, 500);
+
+        // 5. Membersihkan Konsol secara paksa
+        setInterval(() => {
+            console.clear();
+        }, 1000);
+
+        /* --- LOGIKA PLAYER AUDIO --- */
         const audio = document.getElementById('mainAudio');
         const playBtn = document.getElementById('playBtn');
         const playIcon = document.getElementById('playIcon');
@@ -358,18 +408,13 @@
         let isPlaying = false;
         let hideTimeout;
 
-        // --- LOGIKA PROGRESS BAR (CLICK & DRAG / TOUCH) ---
         function setProgress(e) {
             if (!audio.duration) return;
             const rect = progressBarBg.getBoundingClientRect();
-            // Mendukung event Mouse (clientX) dan Touch (touches[0].clientX)
             const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
             let pos = (clientX - rect.left) / rect.width;
-            
-            // Batasan agar tidak keluar dari 0% - 100%
             if (pos < 0) pos = 0;
             if (pos > 1) pos = 1;
-            
             audio.currentTime = pos * audio.duration;
             updateProgressUI();
         }
@@ -382,7 +427,6 @@
             }
         }
 
-        // Event Listeners untuk Progress Bar
         progressBarBg.addEventListener('mousedown', (e) => {
             setProgress(e);
             const moveHandler = (moveEvent) => setProgress(moveEvent);
@@ -405,7 +449,6 @@
             document.addEventListener('touchend', endHandler);
         }, { passive: false });
 
-        // --- CONTROLS OVERLAY ---
         function showControls() {
             controlsOverlay.classList.remove('controls-hidden');
             clearTimeout(hideTimeout);
@@ -445,7 +488,6 @@
             togglePlay();
         });
 
-        // --- MODAL ---
         function showModal() { modal.classList.add('active'); }
         function hideModal() {
             modal.classList.add('closing');
@@ -457,7 +499,6 @@
         closeModalBtn.addEventListener('click', hideModal);
         modal.addEventListener('click', (e) => { if (e.target === modal) hideModal(); });
 
-        // --- MOBILE DRAG LOGIC (Lagu Card Bawah) ---
         let startX = 0;
         let currentTranslate = 0;
         musicTrackCard.addEventListener('touchstart', (e) => {
@@ -483,7 +524,6 @@
             window.open(`https://www.youtube.com/watch?v=mz1pT5ffqrw`, '_blank');
         });
 
-        // --- AUDIO ENGINE ---
         audio.addEventListener('play', () => {
             isPlaying = true;
             playIcon.className = 'fas fa-pause';
